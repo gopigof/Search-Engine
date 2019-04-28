@@ -1,0 +1,573 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html><head><title>Python: module simserver</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+</head><body bgcolor="#f0f0f8">
+
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="heading">
+<tr bgcolor="#7799ee">
+<td valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial">&nbsp;<br><big><big><strong>simserver</strong></big></big></font></td
+><td align=right valign=bottom
+><font color="#ffffff" face="helvetica, arial"><a href=".">index</a><br><a href="file:c%3A%5Cusers%5Cstudent%5Cdownloads%5Cpycharm%20proj%5Csearch-engine-master%5Ccomponents%5Cindex%5Csimserver.py">c:\users\student\downloads\pycharm proj\search-engine-master\components\index\simserver.py</a></font></td></tr></table>
+    <p><tt>"Find&nbsp;similar"&nbsp;service,&nbsp;using&nbsp;gensim&nbsp;(=vector&nbsp;spaces)&nbsp;for&nbsp;backend.<br>
+&nbsp;<br>
+The&nbsp;server&nbsp;performs&nbsp;3&nbsp;main&nbsp;functions:<br>
+&nbsp;<br>
+1.&nbsp;converts&nbsp;documents&nbsp;to&nbsp;semantic&nbsp;representation&nbsp;(TF-IDF,&nbsp;LSA,&nbsp;LDA...)<br>
+2.&nbsp;indexes&nbsp;documents&nbsp;in&nbsp;the&nbsp;vector&nbsp;representation,&nbsp;for&nbsp;faster&nbsp;retrieval<br>
+3.&nbsp;for&nbsp;a&nbsp;given&nbsp;query&nbsp;document,&nbsp;return&nbsp;ids&nbsp;of&nbsp;the&nbsp;most&nbsp;similar&nbsp;documents&nbsp;from&nbsp;the&nbsp;index<br>
+&nbsp;<br>
+<a href="#SessionServer">SessionServer</a>&nbsp;objects&nbsp;are&nbsp;transactional,&nbsp;so&nbsp;that&nbsp;you&nbsp;can&nbsp;rollback/commit&nbsp;an&nbsp;entire<br>
+set&nbsp;of&nbsp;changes.<br>
+&nbsp;<br>
+The&nbsp;server&nbsp;is&nbsp;ready&nbsp;for&nbsp;concurrent&nbsp;requests&nbsp;(thread-safe).&nbsp;Indexing&nbsp;is&nbsp;incremental<br>
+and&nbsp;you&nbsp;can&nbsp;query&nbsp;the&nbsp;<a href="#SessionServer">SessionServer</a>&nbsp;even&nbsp;while&nbsp;it's&nbsp;being&nbsp;updated,&nbsp;so&nbsp;that&nbsp;there<br>
+is&nbsp;virtually&nbsp;no&nbsp;down-time.</tt></p>
+<p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#aa55cc">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Modules</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#aa55cc"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><table width="100%" summary="list"><tr><td width="25%" valign=top><a href="gensim.html">gensim</a><br>
+<a href="logging.html">logging</a><br>
+</td><td width="25%" valign=top><a href="numpy.html">numpy</a><br>
+<a href="os.html">os</a><br>
+</td><td width="25%" valign=top><a href="shutil.html">shutil</a><br>
+<a href="threading.html">threading</a><br>
+</td><td width="25%" valign=top></td></tr></table></td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ee77aa">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Classes</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#ee77aa"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><dl>
+<dt><font face="helvetica, arial"><a href="builtins.html#object">builtins.object</a>
+</font></dt><dd>
+<dl>
+<dt><font face="helvetica, arial"><a href="simserver.html#SimServer">SimServer</a>
+</font></dt></dl>
+</dd>
+<dt><font face="helvetica, arial"><a href="gensim.utils.html#SaveLoad">gensim.utils.SaveLoad</a>(<a href="builtins.html#object">builtins.object</a>)
+</font></dt><dd>
+<dl>
+<dt><font face="helvetica, arial"><a href="simserver.html#SessionServer">SessionServer</a>
+</font></dt><dt><font face="helvetica, arial"><a href="simserver.html#SimIndex">SimIndex</a>
+</font></dt><dt><font face="helvetica, arial"><a href="simserver.html#SimModel">SimModel</a>
+</font></dt></dl>
+</dd>
+</dl>
+ <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="SessionServer">class <strong>SessionServer</strong></a>(<a href="gensim.utils.html#SaveLoad">gensim.utils.SaveLoad</a>)</font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt><a href="#SessionServer">SessionServer</a>(basedir,&nbsp;autosession=True,&nbsp;use_locks=True)<br>
+&nbsp;<br>
+Similarity&nbsp;server&nbsp;on&nbsp;top&nbsp;of&nbsp;:class:`<a href="#SimServer">SimServer</a>`&nbsp;that&nbsp;implements&nbsp;sessions&nbsp;=&nbsp;transactions.<br>
+&nbsp;<br>
+A&nbsp;transaction&nbsp;is&nbsp;a&nbsp;set&nbsp;of&nbsp;server&nbsp;modifications&nbsp;(index/delete/train&nbsp;calls)&nbsp;that<br>
+may&nbsp;be&nbsp;either&nbsp;committed&nbsp;or&nbsp;rolled&nbsp;back&nbsp;entirely.<br>
+&nbsp;<br>
+Sessions&nbsp;are&nbsp;realized&nbsp;by:<br>
+&nbsp;<br>
+1.&nbsp;cloning&nbsp;(=copying)&nbsp;a&nbsp;<a href="#SimServer">SimServer</a>&nbsp;at&nbsp;the&nbsp;beginning&nbsp;of&nbsp;a&nbsp;session<br>
+2.&nbsp;serving&nbsp;read-only&nbsp;queries&nbsp;from&nbsp;the&nbsp;original&nbsp;server&nbsp;(the&nbsp;clone&nbsp;may&nbsp;be&nbsp;modified&nbsp;during&nbsp;queries)<br>
+3.&nbsp;modifications&nbsp;affect&nbsp;only&nbsp;the&nbsp;clone<br>
+4.&nbsp;at&nbsp;commit,&nbsp;the&nbsp;clone&nbsp;becomes&nbsp;the&nbsp;original<br>
+5.&nbsp;at&nbsp;rollback,&nbsp;do&nbsp;nothing&nbsp;(clone&nbsp;is&nbsp;discarded,&nbsp;next&nbsp;transaction&nbsp;starts&nbsp;from&nbsp;the&nbsp;original&nbsp;again)<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%"><dl><dt>Method resolution order:</dt>
+<dd><a href="simserver.html#SessionServer">SessionServer</a></dd>
+<dd><a href="gensim.utils.html#SaveLoad">gensim.utils.SaveLoad</a></dd>
+<dd><a href="builtins.html#object">builtins.object</a></dd>
+</dl>
+<hr>
+Methods defined here:<br>
+<dl><dt><a name="SessionServer-__contains__"><strong>__contains__</strong></a>(self, docid)</dt></dl>
+
+<dl><dt><a name="SessionServer-__del__"><strong>__del__</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="SessionServer-__init__"><strong>__init__</strong></a>(self, basedir, autosession=True, use_locks=True)</dt><dd><tt>Initialize&nbsp;self.&nbsp;&nbsp;See&nbsp;help(type(self))&nbsp;for&nbsp;accurate&nbsp;signature.</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-__len__"><strong>__len__</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="SessionServer-__str__"><strong>__str__</strong></a>(self)</dt><dd><tt>Return&nbsp;str(self).</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-buffer"><strong>buffer</strong></a>(self, *args, **kwargs)</dt><dd><tt>Buffer&nbsp;documents,&nbsp;in&nbsp;the&nbsp;current&nbsp;session</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-check_session"><strong>check_session</strong></a>(self)</dt><dd><tt>Make&nbsp;sure&nbsp;a&nbsp;session&nbsp;is&nbsp;open.<br>
+&nbsp;<br>
+If&nbsp;it's&nbsp;not&nbsp;and&nbsp;autosession&nbsp;is&nbsp;turned&nbsp;on,&nbsp;create&nbsp;a&nbsp;new&nbsp;session&nbsp;automatically.<br>
+If&nbsp;it's&nbsp;not&nbsp;and&nbsp;autosession&nbsp;is&nbsp;off,&nbsp;raise&nbsp;an&nbsp;exception.</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-close"><strong>close</strong></a>(self)</dt><dd><tt>Don't&nbsp;wait&nbsp;for&nbsp;gc,&nbsp;try&nbsp;to&nbsp;release&nbsp;important&nbsp;resources&nbsp;manually</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-commit"><strong>commit</strong></a>(self)</dt><dd><tt>Commit&nbsp;changes&nbsp;made&nbsp;by&nbsp;the&nbsp;latest&nbsp;session.</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-debug_model"><strong>debug_model</strong></a>(self)</dt><dd><tt>#&nbsp;add&nbsp;some&nbsp;functions&nbsp;for&nbsp;remote&nbsp;access&nbsp;(RPC&nbsp;via&nbsp;Pyro)</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-delete"><strong>delete</strong></a>(self, docids)</dt><dd><tt>Delete&nbsp;documents&nbsp;from&nbsp;the&nbsp;current&nbsp;session.</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-drop_index"><strong>drop_index</strong></a>(self, keep_model=True)</dt><dd><tt>Drop&nbsp;all&nbsp;indexed&nbsp;documents&nbsp;from&nbsp;the&nbsp;session.&nbsp;Optionally,&nbsp;drop&nbsp;model&nbsp;too.</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-find_similar"><strong>find_similar</strong></a>(self, *args, **kwargs)</dt><dd><tt>Find&nbsp;similar&nbsp;articles.<br>
+&nbsp;<br>
+With&nbsp;autosession&nbsp;off,&nbsp;use&nbsp;the&nbsp;index&nbsp;state&nbsp;*before*&nbsp;current&nbsp;session&nbsp;started,<br>
+so&nbsp;that&nbsp;changes&nbsp;made&nbsp;in&nbsp;the&nbsp;session&nbsp;will&nbsp;not&nbsp;be&nbsp;visible&nbsp;here.&nbsp;With&nbsp;autosession<br>
+on,&nbsp;close&nbsp;the&nbsp;current&nbsp;session&nbsp;first&nbsp;(so&nbsp;that&nbsp;session&nbsp;changes&nbsp;*are*&nbsp;committed<br>
+and&nbsp;visible).</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-index"><strong>index</strong></a>(self, *args, **kwargs)</dt><dd><tt>Index&nbsp;documents,&nbsp;in&nbsp;the&nbsp;current&nbsp;session</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-keys"><strong>keys</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="SessionServer-location"><strong>location</strong></a>(self, name)</dt></dl>
+
+<dl><dt><a name="SessionServer-open_session"><strong>open_session</strong></a>(self)</dt><dd><tt>Open&nbsp;a&nbsp;new&nbsp;session&nbsp;to&nbsp;modify&nbsp;this&nbsp;server.<br>
+&nbsp;<br>
+You&nbsp;can&nbsp;either&nbsp;call&nbsp;this&nbsp;fnc&nbsp;directly,&nbsp;or&nbsp;turn&nbsp;on&nbsp;autosession&nbsp;which&nbsp;will<br>
+open/commit&nbsp;sessions&nbsp;for&nbsp;you&nbsp;transparently.</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-optimize"><strong>optimize</strong></a>(self)</dt><dd><tt>Optimize&nbsp;index&nbsp;for&nbsp;faster&nbsp;by-document-id&nbsp;queries.</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-rollback"><strong>rollback</strong></a>(self)</dt><dd><tt>Ignore&nbsp;all&nbsp;changes&nbsp;made&nbsp;in&nbsp;the&nbsp;latest&nbsp;session&nbsp;(terminate&nbsp;the&nbsp;session).</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-set_autosession"><strong>set_autosession</strong></a>(self, value=None)</dt><dd><tt>Turn&nbsp;autosession&nbsp;(automatic&nbsp;committing&nbsp;after&nbsp;each&nbsp;modification&nbsp;call)&nbsp;on/off.<br>
+If&nbsp;value&nbsp;is&nbsp;None,&nbsp;only&nbsp;query&nbsp;the&nbsp;current&nbsp;value&nbsp;(don't&nbsp;change&nbsp;anything).</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-status"><strong>status</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="SessionServer-terminate"><strong>terminate</strong></a>(self)</dt><dd><tt>Delete&nbsp;all&nbsp;files&nbsp;created&nbsp;by&nbsp;this&nbsp;server,&nbsp;invalidating&nbsp;`self`.&nbsp;Use&nbsp;with&nbsp;care.</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-train"><strong>train</strong></a>(self, *args, **kwargs)</dt><dd><tt>Update&nbsp;semantic&nbsp;model,&nbsp;in&nbsp;the&nbsp;current&nbsp;session.</tt></dd></dl>
+
+<dl><dt><a name="SessionServer-write_istable"><strong>write_istable</strong></a>(self)</dt></dl>
+
+<hr>
+Data descriptors defined here:<br>
+<dl><dt><strong>loc_session</strong></dt>
+</dl>
+<dl><dt><strong>loc_stable</strong></dt>
+</dl>
+<hr>
+Methods inherited from <a href="gensim.utils.html#SaveLoad">gensim.utils.SaveLoad</a>:<br>
+<dl><dt><a name="SessionServer-save"><strong>save</strong></a>(self, fname_or_handle, separately=None, sep_limit=10485760, ignore=frozenset(), pickle_protocol=2)</dt><dd><tt>Save&nbsp;the&nbsp;<a href="builtins.html#object">object</a>&nbsp;to&nbsp;a&nbsp;file.<br>
+&nbsp;<br>
+Parameters<br>
+----------<br>
+fname_or_handle&nbsp;:&nbsp;str&nbsp;or&nbsp;file-like<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Path&nbsp;to&nbsp;output&nbsp;file&nbsp;or&nbsp;already&nbsp;opened&nbsp;file-like&nbsp;<a href="builtins.html#object">object</a>.&nbsp;If&nbsp;the&nbsp;<a href="builtins.html#object">object</a>&nbsp;is&nbsp;a&nbsp;file&nbsp;handle,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;no&nbsp;special&nbsp;array&nbsp;handling&nbsp;will&nbsp;be&nbsp;performed,&nbsp;all&nbsp;attributes&nbsp;will&nbsp;be&nbsp;saved&nbsp;to&nbsp;the&nbsp;same&nbsp;file.<br>
+separately&nbsp;:&nbsp;list&nbsp;of&nbsp;str&nbsp;or&nbsp;None,&nbsp;optional<br>
+&nbsp;&nbsp;&nbsp;&nbsp;If&nbsp;None,&nbsp;automatically&nbsp;detect&nbsp;large&nbsp;numpy/scipy.sparse&nbsp;arrays&nbsp;in&nbsp;the&nbsp;<a href="builtins.html#object">object</a>&nbsp;being&nbsp;stored,&nbsp;and&nbsp;store<br>
+&nbsp;&nbsp;&nbsp;&nbsp;them&nbsp;into&nbsp;separate&nbsp;files.&nbsp;This&nbsp;prevent&nbsp;memory&nbsp;errors&nbsp;for&nbsp;large&nbsp;objects,&nbsp;and&nbsp;also&nbsp;allows<br>
+&nbsp;&nbsp;&nbsp;&nbsp;`memory-mapping&nbsp;&lt;https://en.wikipedia.org/wiki/Mmap&gt;`_&nbsp;the&nbsp;large&nbsp;arrays&nbsp;for&nbsp;efficient<br>
+&nbsp;&nbsp;&nbsp;&nbsp;loading&nbsp;and&nbsp;sharing&nbsp;the&nbsp;large&nbsp;arrays&nbsp;in&nbsp;RAM&nbsp;between&nbsp;multiple&nbsp;processes.<br>
+&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;If&nbsp;list&nbsp;of&nbsp;str:&nbsp;store&nbsp;these&nbsp;attributes&nbsp;into&nbsp;separate&nbsp;files.&nbsp;The&nbsp;automated&nbsp;size&nbsp;check<br>
+&nbsp;&nbsp;&nbsp;&nbsp;is&nbsp;not&nbsp;performed&nbsp;in&nbsp;this&nbsp;case.<br>
+sep_limit&nbsp;:&nbsp;int,&nbsp;optional<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Don't&nbsp;store&nbsp;arrays&nbsp;smaller&nbsp;than&nbsp;this&nbsp;separately.&nbsp;In&nbsp;bytes.<br>
+ignore&nbsp;:&nbsp;frozenset&nbsp;of&nbsp;str,&nbsp;optional<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Attributes&nbsp;that&nbsp;shouldn't&nbsp;be&nbsp;stored&nbsp;at&nbsp;all.<br>
+pickle_protocol&nbsp;:&nbsp;int,&nbsp;optional<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Protocol&nbsp;number&nbsp;for&nbsp;pickle.<br>
+&nbsp;<br>
+See&nbsp;Also<br>
+--------<br>
+:meth:`~gensim.utils.<a href="gensim.utils.html#SaveLoad">SaveLoad</a>.load`<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Load&nbsp;<a href="builtins.html#object">object</a>&nbsp;from&nbsp;file.</tt></dd></dl>
+
+<hr>
+Class methods inherited from <a href="gensim.utils.html#SaveLoad">gensim.utils.SaveLoad</a>:<br>
+<dl><dt><a name="SessionServer-load"><strong>load</strong></a>(fname, mmap=None)<font color="#909090"><font face="helvetica, arial"> from <a href="builtins.html#type">builtins.type</a></font></font></dt><dd><tt>Load&nbsp;an&nbsp;<a href="builtins.html#object">object</a>&nbsp;previously&nbsp;saved&nbsp;using&nbsp;:meth:`~gensim.utils.<a href="gensim.utils.html#SaveLoad">SaveLoad</a>.save`&nbsp;from&nbsp;a&nbsp;file.<br>
+&nbsp;<br>
+Parameters<br>
+----------<br>
+fname&nbsp;:&nbsp;str<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Path&nbsp;to&nbsp;file&nbsp;that&nbsp;contains&nbsp;needed&nbsp;<a href="builtins.html#object">object</a>.<br>
+mmap&nbsp;:&nbsp;str,&nbsp;optional<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Memory-map&nbsp;option.&nbsp;&nbsp;If&nbsp;the&nbsp;<a href="builtins.html#object">object</a>&nbsp;was&nbsp;saved&nbsp;with&nbsp;large&nbsp;arrays&nbsp;stored&nbsp;separately,&nbsp;you&nbsp;can&nbsp;load&nbsp;these&nbsp;arrays<br>
+&nbsp;&nbsp;&nbsp;&nbsp;via&nbsp;mmap&nbsp;(shared&nbsp;memory)&nbsp;using&nbsp;`mmap='r'.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;If&nbsp;the&nbsp;file&nbsp;being&nbsp;loaded&nbsp;is&nbsp;compressed&nbsp;(either&nbsp;'.gz'&nbsp;or&nbsp;'.bz2'),&nbsp;then&nbsp;`mmap=None`&nbsp;**must&nbsp;be**&nbsp;set.<br>
+&nbsp;<br>
+See&nbsp;Also<br>
+--------<br>
+:meth:`~gensim.utils.<a href="gensim.utils.html#SaveLoad">SaveLoad</a>.save`<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Save&nbsp;<a href="builtins.html#object">object</a>&nbsp;to&nbsp;file.<br>
+&nbsp;<br>
+Returns<br>
+-------<br>
+<a href="builtins.html#object">object</a><br>
+&nbsp;&nbsp;&nbsp;&nbsp;Object&nbsp;loaded&nbsp;from&nbsp;`fname`.<br>
+&nbsp;<br>
+Raises<br>
+------<br>
+AttributeError<br>
+&nbsp;&nbsp;&nbsp;&nbsp;When&nbsp;called&nbsp;on&nbsp;an&nbsp;<a href="builtins.html#object">object</a>&nbsp;instance&nbsp;instead&nbsp;of&nbsp;class&nbsp;(this&nbsp;is&nbsp;a&nbsp;class&nbsp;method).</tt></dd></dl>
+
+<hr>
+Data descriptors inherited from <a href="gensim.utils.html#SaveLoad">gensim.utils.SaveLoad</a>:<br>
+<dl><dt><strong>__dict__</strong></dt>
+<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+<dl><dt><strong>__weakref__</strong></dt>
+<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;object&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="SimIndex">class <strong>SimIndex</strong></a>(<a href="gensim.utils.html#SaveLoad">gensim.utils.SaveLoad</a>)</font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt><a href="#SimIndex">SimIndex</a>(fname,&nbsp;num_features,&nbsp;shardsize=65536,&nbsp;topsims=100)<br>
+&nbsp;<br>
+An&nbsp;index&nbsp;of&nbsp;documents.&nbsp;Used&nbsp;internally&nbsp;by&nbsp;<a href="#SimServer">SimServer</a>.<br>
+&nbsp;<br>
+It&nbsp;uses&nbsp;the&nbsp;Similarity&nbsp;class&nbsp;to&nbsp;persist&nbsp;all&nbsp;document&nbsp;vectors&nbsp;to&nbsp;disk&nbsp;(via&nbsp;mmap).<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%"><dl><dt>Method resolution order:</dt>
+<dd><a href="simserver.html#SimIndex">SimIndex</a></dd>
+<dd><a href="gensim.utils.html#SaveLoad">gensim.utils.SaveLoad</a></dd>
+<dd><a href="builtins.html#object">builtins.object</a></dd>
+</dl>
+<hr>
+Methods defined here:<br>
+<dl><dt><a name="SimIndex-__contains__"><strong>__contains__</strong></a>(self, docid)</dt></dl>
+
+<dl><dt><a name="SimIndex-__init__"><strong>__init__</strong></a>(self, fname, num_features, shardsize=65536, topsims=100)</dt><dd><tt>Spill&nbsp;index&nbsp;shards&nbsp;to&nbsp;disk&nbsp;after&nbsp;every&nbsp;`shardsize`&nbsp;documents.<br>
+In&nbsp;similarity&nbsp;queries,&nbsp;return&nbsp;only&nbsp;the&nbsp;`topsims`&nbsp;most&nbsp;similar&nbsp;documents.</tt></dd></dl>
+
+<dl><dt><a name="SimIndex-__len__"><strong>__len__</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="SimIndex-__str__"><strong>__str__</strong></a>(self)</dt><dd><tt>Return&nbsp;str(self).</tt></dd></dl>
+
+<dl><dt><a name="SimIndex-check_moved"><strong>check_moved</strong></a>(self, fname)</dt></dl>
+
+<dl><dt><a name="SimIndex-close"><strong>close</strong></a>(self)</dt><dd><tt>Explicitly&nbsp;release&nbsp;important&nbsp;resources&nbsp;(file&nbsp;handles,&nbsp;db,&nbsp;...)</tt></dd></dl>
+
+<dl><dt><a name="SimIndex-delete"><strong>delete</strong></a>(self, docids)</dt><dd><tt>Delete&nbsp;documents&nbsp;(specified&nbsp;by&nbsp;their&nbsp;ids)&nbsp;from&nbsp;the&nbsp;index.</tt></dd></dl>
+
+<dl><dt><a name="SimIndex-index_documents"><strong>index_documents</strong></a>(self, fresh_docs, model)</dt><dd><tt>Update&nbsp;fresh&nbsp;index&nbsp;with&nbsp;new&nbsp;documents&nbsp;(potentially&nbsp;replacing&nbsp;old&nbsp;ones&nbsp;with<br>
+the&nbsp;same&nbsp;id).&nbsp;`fresh_docs`&nbsp;is&nbsp;a&nbsp;dictionary-like&nbsp;<a href="builtins.html#object">object</a>&nbsp;(=dict,&nbsp;sqlitedict,&nbsp;shelve&nbsp;etc)<br>
+that&nbsp;maps&nbsp;document_id-&gt;document.</tt></dd></dl>
+
+<dl><dt><a name="SimIndex-keys"><strong>keys</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="SimIndex-merge"><strong>merge</strong></a>(self, other)</dt><dd><tt>Merge&nbsp;documents&nbsp;from&nbsp;the&nbsp;other&nbsp;index.&nbsp;Update&nbsp;precomputed&nbsp;similarities<br>
+in&nbsp;the&nbsp;process.</tt></dd></dl>
+
+<dl><dt><a name="SimIndex-save"><strong>save</strong></a>(self, fname)</dt><dd><tt>Save&nbsp;the&nbsp;<a href="builtins.html#object">object</a>&nbsp;to&nbsp;a&nbsp;file.<br>
+&nbsp;<br>
+Parameters<br>
+----------<br>
+fname_or_handle&nbsp;:&nbsp;str&nbsp;or&nbsp;file-like<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Path&nbsp;to&nbsp;output&nbsp;file&nbsp;or&nbsp;already&nbsp;opened&nbsp;file-like&nbsp;<a href="builtins.html#object">object</a>.&nbsp;If&nbsp;the&nbsp;<a href="builtins.html#object">object</a>&nbsp;is&nbsp;a&nbsp;file&nbsp;handle,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;no&nbsp;special&nbsp;array&nbsp;handling&nbsp;will&nbsp;be&nbsp;performed,&nbsp;all&nbsp;attributes&nbsp;will&nbsp;be&nbsp;saved&nbsp;to&nbsp;the&nbsp;same&nbsp;file.<br>
+separately&nbsp;:&nbsp;list&nbsp;of&nbsp;str&nbsp;or&nbsp;None,&nbsp;optional<br>
+&nbsp;&nbsp;&nbsp;&nbsp;If&nbsp;None,&nbsp;automatically&nbsp;detect&nbsp;large&nbsp;numpy/scipy.sparse&nbsp;arrays&nbsp;in&nbsp;the&nbsp;<a href="builtins.html#object">object</a>&nbsp;being&nbsp;stored,&nbsp;and&nbsp;store<br>
+&nbsp;&nbsp;&nbsp;&nbsp;them&nbsp;into&nbsp;separate&nbsp;files.&nbsp;This&nbsp;prevent&nbsp;memory&nbsp;errors&nbsp;for&nbsp;large&nbsp;objects,&nbsp;and&nbsp;also&nbsp;allows<br>
+&nbsp;&nbsp;&nbsp;&nbsp;`memory-mapping&nbsp;&lt;https://en.wikipedia.org/wiki/Mmap&gt;`_&nbsp;the&nbsp;large&nbsp;arrays&nbsp;for&nbsp;efficient<br>
+&nbsp;&nbsp;&nbsp;&nbsp;loading&nbsp;and&nbsp;sharing&nbsp;the&nbsp;large&nbsp;arrays&nbsp;in&nbsp;RAM&nbsp;between&nbsp;multiple&nbsp;processes.<br>
+&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;If&nbsp;list&nbsp;of&nbsp;str:&nbsp;store&nbsp;these&nbsp;attributes&nbsp;into&nbsp;separate&nbsp;files.&nbsp;The&nbsp;automated&nbsp;size&nbsp;check<br>
+&nbsp;&nbsp;&nbsp;&nbsp;is&nbsp;not&nbsp;performed&nbsp;in&nbsp;this&nbsp;case.<br>
+sep_limit&nbsp;:&nbsp;int,&nbsp;optional<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Don't&nbsp;store&nbsp;arrays&nbsp;smaller&nbsp;than&nbsp;this&nbsp;separately.&nbsp;In&nbsp;bytes.<br>
+ignore&nbsp;:&nbsp;frozenset&nbsp;of&nbsp;str,&nbsp;optional<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Attributes&nbsp;that&nbsp;shouldn't&nbsp;be&nbsp;stored&nbsp;at&nbsp;all.<br>
+pickle_protocol&nbsp;:&nbsp;int,&nbsp;optional<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Protocol&nbsp;number&nbsp;for&nbsp;pickle.<br>
+&nbsp;<br>
+See&nbsp;Also<br>
+--------<br>
+:meth:`~gensim.utils.<a href="gensim.utils.html#SaveLoad">SaveLoad</a>.load`<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Load&nbsp;<a href="builtins.html#object">object</a>&nbsp;from&nbsp;file.</tt></dd></dl>
+
+<dl><dt><a name="SimIndex-sims2scores"><strong>sims2scores</strong></a>(self, sims, eps=1e-07)</dt><dd><tt>Convert&nbsp;raw&nbsp;similarity&nbsp;vector&nbsp;to&nbsp;a&nbsp;list&nbsp;of&nbsp;(docid,&nbsp;similarity)&nbsp;results.</tt></dd></dl>
+
+<dl><dt><a name="SimIndex-sims_by_id"><strong>sims_by_id</strong></a>(self, docid)</dt><dd><tt>Find&nbsp;the&nbsp;most&nbsp;similar&nbsp;documents&nbsp;to&nbsp;the&nbsp;(already&nbsp;indexed)&nbsp;document&nbsp;with&nbsp;`docid`.</tt></dd></dl>
+
+<dl><dt><a name="SimIndex-sims_by_vec"><strong>sims_by_vec</strong></a>(self, vec, normalize=None)</dt><dd><tt>Find&nbsp;the&nbsp;most&nbsp;similar&nbsp;documents&nbsp;to&nbsp;a&nbsp;given&nbsp;vector&nbsp;(=already&nbsp;processed&nbsp;document).</tt></dd></dl>
+
+<dl><dt><a name="SimIndex-terminate"><strong>terminate</strong></a>(self)</dt><dd><tt>Delete&nbsp;all&nbsp;files&nbsp;created&nbsp;by&nbsp;this&nbsp;index,&nbsp;invalidating&nbsp;`self`.&nbsp;Use&nbsp;with&nbsp;care.</tt></dd></dl>
+
+<dl><dt><a name="SimIndex-update_ids"><strong>update_ids</strong></a>(self, docids)</dt><dd><tt>Update&nbsp;id-&gt;pos&nbsp;mapping&nbsp;with&nbsp;new&nbsp;document&nbsp;ids.</tt></dd></dl>
+
+<dl><dt><a name="SimIndex-update_mappings"><strong>update_mappings</strong></a>(self)</dt><dd><tt>Synchronize&nbsp;id&lt;-&gt;position&nbsp;mappings.</tt></dd></dl>
+
+<dl><dt><a name="SimIndex-vec_by_id"><strong>vec_by_id</strong></a>(self, docid)</dt><dd><tt>Return&nbsp;indexed&nbsp;vector&nbsp;corresponding&nbsp;to&nbsp;document&nbsp;`docid`.</tt></dd></dl>
+
+<hr>
+Static methods defined here:<br>
+<dl><dt><a name="SimIndex-load"><strong>load</strong></a>(fname)</dt><dd><tt>Load&nbsp;an&nbsp;<a href="builtins.html#object">object</a>&nbsp;previously&nbsp;saved&nbsp;using&nbsp;:meth:`~gensim.utils.<a href="gensim.utils.html#SaveLoad">SaveLoad</a>.save`&nbsp;from&nbsp;a&nbsp;file.<br>
+&nbsp;<br>
+Parameters<br>
+----------<br>
+fname&nbsp;:&nbsp;str<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Path&nbsp;to&nbsp;file&nbsp;that&nbsp;contains&nbsp;needed&nbsp;<a href="builtins.html#object">object</a>.<br>
+mmap&nbsp;:&nbsp;str,&nbsp;optional<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Memory-map&nbsp;option.&nbsp;&nbsp;If&nbsp;the&nbsp;<a href="builtins.html#object">object</a>&nbsp;was&nbsp;saved&nbsp;with&nbsp;large&nbsp;arrays&nbsp;stored&nbsp;separately,&nbsp;you&nbsp;can&nbsp;load&nbsp;these&nbsp;arrays<br>
+&nbsp;&nbsp;&nbsp;&nbsp;via&nbsp;mmap&nbsp;(shared&nbsp;memory)&nbsp;using&nbsp;`mmap='r'.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;If&nbsp;the&nbsp;file&nbsp;being&nbsp;loaded&nbsp;is&nbsp;compressed&nbsp;(either&nbsp;'.gz'&nbsp;or&nbsp;'.bz2'),&nbsp;then&nbsp;`mmap=None`&nbsp;**must&nbsp;be**&nbsp;set.<br>
+&nbsp;<br>
+See&nbsp;Also<br>
+--------<br>
+:meth:`~gensim.utils.<a href="gensim.utils.html#SaveLoad">SaveLoad</a>.save`<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Save&nbsp;<a href="builtins.html#object">object</a>&nbsp;to&nbsp;file.<br>
+&nbsp;<br>
+Returns<br>
+-------<br>
+<a href="builtins.html#object">object</a><br>
+&nbsp;&nbsp;&nbsp;&nbsp;Object&nbsp;loaded&nbsp;from&nbsp;`fname`.<br>
+&nbsp;<br>
+Raises<br>
+------<br>
+AttributeError<br>
+&nbsp;&nbsp;&nbsp;&nbsp;When&nbsp;called&nbsp;on&nbsp;an&nbsp;<a href="builtins.html#object">object</a>&nbsp;instance&nbsp;instead&nbsp;of&nbsp;class&nbsp;(this&nbsp;is&nbsp;a&nbsp;class&nbsp;method).</tt></dd></dl>
+
+<hr>
+Data descriptors inherited from <a href="gensim.utils.html#SaveLoad">gensim.utils.SaveLoad</a>:<br>
+<dl><dt><strong>__dict__</strong></dt>
+<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+<dl><dt><strong>__weakref__</strong></dt>
+<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;object&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="SimModel">class <strong>SimModel</strong></a>(<a href="gensim.utils.html#SaveLoad">gensim.utils.SaveLoad</a>)</font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt><a href="#SimModel">SimModel</a>(fresh_docs,&nbsp;dictionary=None,&nbsp;method='lsi')<br>
+&nbsp;<br>
+A&nbsp;semantic&nbsp;model&nbsp;responsible&nbsp;for&nbsp;translating&nbsp;between&nbsp;plain&nbsp;text&nbsp;and&nbsp;(semantic)<br>
+vectors.<br>
+&nbsp;<br>
+These&nbsp;vectors&nbsp;can&nbsp;then&nbsp;be&nbsp;indexed/queried&nbsp;for&nbsp;similarity,&nbsp;see&nbsp;the&nbsp;`<a href="#SimIndex">SimIndex</a>`<br>
+class.&nbsp;Used&nbsp;internally&nbsp;by&nbsp;`<a href="#SimServer">SimServer</a>`.<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%"><dl><dt>Method resolution order:</dt>
+<dd><a href="simserver.html#SimModel">SimModel</a></dd>
+<dd><a href="gensim.utils.html#SaveLoad">gensim.utils.SaveLoad</a></dd>
+<dd><a href="builtins.html#object">builtins.object</a></dd>
+</dl>
+<hr>
+Methods defined here:<br>
+<dl><dt><a name="SimModel-__init__"><strong>__init__</strong></a>(self, fresh_docs, dictionary=None, method='lsi')</dt><dd><tt>Train&nbsp;a&nbsp;model,&nbsp;using&nbsp;`fresh_docs`&nbsp;as&nbsp;training&nbsp;corpus.<br>
+&nbsp;<br>
+If&nbsp;`dictionary`&nbsp;is&nbsp;not&nbsp;specified,&nbsp;it&nbsp;is&nbsp;computed&nbsp;from&nbsp;the&nbsp;documents.<br>
+&nbsp;<br>
+`method`&nbsp;is&nbsp;currently&nbsp;one&nbsp;of&nbsp;"tfidf"/"lsi"/"lda".</tt></dd></dl>
+
+<dl><dt><a name="SimModel-__str__"><strong>__str__</strong></a>(self)</dt><dd><tt>Return&nbsp;str(self).</tt></dd></dl>
+
+<dl><dt><a name="SimModel-close"><strong>close</strong></a>(self)</dt><dd><tt>Release&nbsp;important&nbsp;resources&nbsp;manually.</tt></dd></dl>
+
+<dl><dt><a name="SimModel-doc2vec"><strong>doc2vec</strong></a>(self, doc)</dt><dd><tt>Convert&nbsp;a&nbsp;single&nbsp;SimilarityDocument&nbsp;to&nbsp;vector.</tt></dd></dl>
+
+<dl><dt><a name="SimModel-docs2vecs"><strong>docs2vecs</strong></a>(self, docs)</dt><dd><tt>Convert&nbsp;multiple&nbsp;SimilarityDocuments&nbsp;to&nbsp;vectors&nbsp;(batch&nbsp;version&nbsp;of&nbsp;doc2vec).</tt></dd></dl>
+
+<hr>
+Methods inherited from <a href="gensim.utils.html#SaveLoad">gensim.utils.SaveLoad</a>:<br>
+<dl><dt><a name="SimModel-save"><strong>save</strong></a>(self, fname_or_handle, separately=None, sep_limit=10485760, ignore=frozenset(), pickle_protocol=2)</dt><dd><tt>Save&nbsp;the&nbsp;<a href="builtins.html#object">object</a>&nbsp;to&nbsp;a&nbsp;file.<br>
+&nbsp;<br>
+Parameters<br>
+----------<br>
+fname_or_handle&nbsp;:&nbsp;str&nbsp;or&nbsp;file-like<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Path&nbsp;to&nbsp;output&nbsp;file&nbsp;or&nbsp;already&nbsp;opened&nbsp;file-like&nbsp;<a href="builtins.html#object">object</a>.&nbsp;If&nbsp;the&nbsp;<a href="builtins.html#object">object</a>&nbsp;is&nbsp;a&nbsp;file&nbsp;handle,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;no&nbsp;special&nbsp;array&nbsp;handling&nbsp;will&nbsp;be&nbsp;performed,&nbsp;all&nbsp;attributes&nbsp;will&nbsp;be&nbsp;saved&nbsp;to&nbsp;the&nbsp;same&nbsp;file.<br>
+separately&nbsp;:&nbsp;list&nbsp;of&nbsp;str&nbsp;or&nbsp;None,&nbsp;optional<br>
+&nbsp;&nbsp;&nbsp;&nbsp;If&nbsp;None,&nbsp;automatically&nbsp;detect&nbsp;large&nbsp;numpy/scipy.sparse&nbsp;arrays&nbsp;in&nbsp;the&nbsp;<a href="builtins.html#object">object</a>&nbsp;being&nbsp;stored,&nbsp;and&nbsp;store<br>
+&nbsp;&nbsp;&nbsp;&nbsp;them&nbsp;into&nbsp;separate&nbsp;files.&nbsp;This&nbsp;prevent&nbsp;memory&nbsp;errors&nbsp;for&nbsp;large&nbsp;objects,&nbsp;and&nbsp;also&nbsp;allows<br>
+&nbsp;&nbsp;&nbsp;&nbsp;`memory-mapping&nbsp;&lt;https://en.wikipedia.org/wiki/Mmap&gt;`_&nbsp;the&nbsp;large&nbsp;arrays&nbsp;for&nbsp;efficient<br>
+&nbsp;&nbsp;&nbsp;&nbsp;loading&nbsp;and&nbsp;sharing&nbsp;the&nbsp;large&nbsp;arrays&nbsp;in&nbsp;RAM&nbsp;between&nbsp;multiple&nbsp;processes.<br>
+&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;If&nbsp;list&nbsp;of&nbsp;str:&nbsp;store&nbsp;these&nbsp;attributes&nbsp;into&nbsp;separate&nbsp;files.&nbsp;The&nbsp;automated&nbsp;size&nbsp;check<br>
+&nbsp;&nbsp;&nbsp;&nbsp;is&nbsp;not&nbsp;performed&nbsp;in&nbsp;this&nbsp;case.<br>
+sep_limit&nbsp;:&nbsp;int,&nbsp;optional<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Don't&nbsp;store&nbsp;arrays&nbsp;smaller&nbsp;than&nbsp;this&nbsp;separately.&nbsp;In&nbsp;bytes.<br>
+ignore&nbsp;:&nbsp;frozenset&nbsp;of&nbsp;str,&nbsp;optional<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Attributes&nbsp;that&nbsp;shouldn't&nbsp;be&nbsp;stored&nbsp;at&nbsp;all.<br>
+pickle_protocol&nbsp;:&nbsp;int,&nbsp;optional<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Protocol&nbsp;number&nbsp;for&nbsp;pickle.<br>
+&nbsp;<br>
+See&nbsp;Also<br>
+--------<br>
+:meth:`~gensim.utils.<a href="gensim.utils.html#SaveLoad">SaveLoad</a>.load`<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Load&nbsp;<a href="builtins.html#object">object</a>&nbsp;from&nbsp;file.</tt></dd></dl>
+
+<hr>
+Class methods inherited from <a href="gensim.utils.html#SaveLoad">gensim.utils.SaveLoad</a>:<br>
+<dl><dt><a name="SimModel-load"><strong>load</strong></a>(fname, mmap=None)<font color="#909090"><font face="helvetica, arial"> from <a href="builtins.html#type">builtins.type</a></font></font></dt><dd><tt>Load&nbsp;an&nbsp;<a href="builtins.html#object">object</a>&nbsp;previously&nbsp;saved&nbsp;using&nbsp;:meth:`~gensim.utils.<a href="gensim.utils.html#SaveLoad">SaveLoad</a>.save`&nbsp;from&nbsp;a&nbsp;file.<br>
+&nbsp;<br>
+Parameters<br>
+----------<br>
+fname&nbsp;:&nbsp;str<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Path&nbsp;to&nbsp;file&nbsp;that&nbsp;contains&nbsp;needed&nbsp;<a href="builtins.html#object">object</a>.<br>
+mmap&nbsp;:&nbsp;str,&nbsp;optional<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Memory-map&nbsp;option.&nbsp;&nbsp;If&nbsp;the&nbsp;<a href="builtins.html#object">object</a>&nbsp;was&nbsp;saved&nbsp;with&nbsp;large&nbsp;arrays&nbsp;stored&nbsp;separately,&nbsp;you&nbsp;can&nbsp;load&nbsp;these&nbsp;arrays<br>
+&nbsp;&nbsp;&nbsp;&nbsp;via&nbsp;mmap&nbsp;(shared&nbsp;memory)&nbsp;using&nbsp;`mmap='r'.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;If&nbsp;the&nbsp;file&nbsp;being&nbsp;loaded&nbsp;is&nbsp;compressed&nbsp;(either&nbsp;'.gz'&nbsp;or&nbsp;'.bz2'),&nbsp;then&nbsp;`mmap=None`&nbsp;**must&nbsp;be**&nbsp;set.<br>
+&nbsp;<br>
+See&nbsp;Also<br>
+--------<br>
+:meth:`~gensim.utils.<a href="gensim.utils.html#SaveLoad">SaveLoad</a>.save`<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Save&nbsp;<a href="builtins.html#object">object</a>&nbsp;to&nbsp;file.<br>
+&nbsp;<br>
+Returns<br>
+-------<br>
+<a href="builtins.html#object">object</a><br>
+&nbsp;&nbsp;&nbsp;&nbsp;Object&nbsp;loaded&nbsp;from&nbsp;`fname`.<br>
+&nbsp;<br>
+Raises<br>
+------<br>
+AttributeError<br>
+&nbsp;&nbsp;&nbsp;&nbsp;When&nbsp;called&nbsp;on&nbsp;an&nbsp;<a href="builtins.html#object">object</a>&nbsp;instance&nbsp;instead&nbsp;of&nbsp;class&nbsp;(this&nbsp;is&nbsp;a&nbsp;class&nbsp;method).</tt></dd></dl>
+
+<hr>
+Data descriptors inherited from <a href="gensim.utils.html#SaveLoad">gensim.utils.SaveLoad</a>:<br>
+<dl><dt><strong>__dict__</strong></dt>
+<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+<dl><dt><strong>__weakref__</strong></dt>
+<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;object&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="SimServer">class <strong>SimServer</strong></a>(<a href="builtins.html#object">builtins.object</a>)</font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt><a href="#SimServer">SimServer</a>(basename,&nbsp;use_locks=True)<br>
+&nbsp;<br>
+Top-level&nbsp;functionality&nbsp;for&nbsp;similarity&nbsp;services.&nbsp;A&nbsp;similarity&nbsp;server&nbsp;takes<br>
+care&nbsp;of::<br>
+&nbsp;<br>
+1.&nbsp;creating&nbsp;semantic&nbsp;models<br>
+2.&nbsp;indexing&nbsp;documents&nbsp;using&nbsp;these&nbsp;models<br>
+3.&nbsp;finding&nbsp;the&nbsp;most&nbsp;similar&nbsp;documents&nbsp;in&nbsp;an&nbsp;index.<br>
+&nbsp;<br>
+An&nbsp;<a href="builtins.html#object">object</a>&nbsp;of&nbsp;this&nbsp;class&nbsp;can&nbsp;be&nbsp;shared&nbsp;across&nbsp;network&nbsp;via&nbsp;Pyro,&nbsp;to&nbsp;answer&nbsp;remote<br>
+client&nbsp;requests.&nbsp;It&nbsp;is&nbsp;thread&nbsp;safe.&nbsp;Using&nbsp;a&nbsp;server&nbsp;concurrently&nbsp;from&nbsp;multiple<br>
+processes&nbsp;is&nbsp;safe&nbsp;for&nbsp;reading&nbsp;=&nbsp;answering&nbsp;similarity&nbsp;queries.&nbsp;Modifying<br>
+(training/indexing)&nbsp;is&nbsp;realized&nbsp;via&nbsp;locking&nbsp;=&nbsp;serialized&nbsp;internally.<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="SimServer-__contains__"><strong>__contains__</strong></a>(self, docid)</dt><dd><tt>Is&nbsp;document&nbsp;with&nbsp;`docid`&nbsp;in&nbsp;the&nbsp;index?</tt></dd></dl>
+
+<dl><dt><a name="SimServer-__del__"><strong>__del__</strong></a>(self)</dt><dd><tt>When&nbsp;the&nbsp;server&nbsp;went&nbsp;out&nbsp;of&nbsp;scope,&nbsp;make&nbsp;an&nbsp;effort&nbsp;to&nbsp;close&nbsp;its&nbsp;DBs.</tt></dd></dl>
+
+<dl><dt><a name="SimServer-__init__"><strong>__init__</strong></a>(self, basename, use_locks=True)</dt><dd><tt>All&nbsp;data&nbsp;will&nbsp;be&nbsp;stored&nbsp;under&nbsp;directory&nbsp;`basename`.&nbsp;If&nbsp;there&nbsp;is&nbsp;a&nbsp;server<br>
+there&nbsp;already,&nbsp;it&nbsp;will&nbsp;be&nbsp;loaded&nbsp;(resumed).<br>
+&nbsp;<br>
+The&nbsp;server&nbsp;<a href="builtins.html#object">object</a>&nbsp;is&nbsp;stateless&nbsp;in&nbsp;RAM&nbsp;--&nbsp;its&nbsp;state&nbsp;is&nbsp;defined&nbsp;entirely&nbsp;by&nbsp;its&nbsp;location.<br>
+There&nbsp;is&nbsp;therefore&nbsp;no&nbsp;need&nbsp;to&nbsp;store&nbsp;the&nbsp;server&nbsp;<a href="builtins.html#object">object</a>.</tt></dd></dl>
+
+<dl><dt><a name="SimServer-__len__"><strong>__len__</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="SimServer-__str__"><strong>__str__</strong></a>(self)</dt><dd><tt>Return&nbsp;str(self).</tt></dd></dl>
+
+<dl><dt><a name="SimServer-buffer"><strong>buffer</strong></a>(self, documents)</dt><dd><tt>Add&nbsp;a&nbsp;sequence&nbsp;of&nbsp;documents&nbsp;to&nbsp;be&nbsp;processed&nbsp;(indexed&nbsp;or&nbsp;trained&nbsp;on).<br>
+&nbsp;<br>
+Here,&nbsp;the&nbsp;documents&nbsp;are&nbsp;simply&nbsp;collected;&nbsp;real&nbsp;processing&nbsp;is&nbsp;done&nbsp;later,<br>
+during&nbsp;the&nbsp;`self.<strong>index</strong>`&nbsp;or&nbsp;`self.<strong>train</strong>`&nbsp;calls.<br>
+&nbsp;<br>
+`buffer`&nbsp;can&nbsp;be&nbsp;called&nbsp;repeatedly;&nbsp;the&nbsp;result&nbsp;is&nbsp;the&nbsp;same&nbsp;as&nbsp;if&nbsp;it&nbsp;was<br>
+called&nbsp;once,&nbsp;with&nbsp;a&nbsp;concatenation&nbsp;of&nbsp;all&nbsp;the&nbsp;partial&nbsp;document&nbsp;batches.<br>
+The&nbsp;point&nbsp;is&nbsp;to&nbsp;save&nbsp;memory&nbsp;when&nbsp;sending&nbsp;large&nbsp;corpora&nbsp;over&nbsp;network:&nbsp;the<br>
+entire&nbsp;`documents`&nbsp;must&nbsp;be&nbsp;serialized&nbsp;into&nbsp;RAM.&nbsp;See&nbsp;`utils.upload_chunked()`.<br>
+&nbsp;<br>
+A&nbsp;call&nbsp;to&nbsp;`<a href="#SimServer-flush">flush</a>()`&nbsp;clears&nbsp;this&nbsp;documents-to-be-processed&nbsp;buffer&nbsp;(`flush`<br>
+is&nbsp;also&nbsp;implicitly&nbsp;called&nbsp;when&nbsp;you&nbsp;call&nbsp;`<a href="#SimServer-index">index</a>()`&nbsp;and&nbsp;`<a href="#SimServer-train">train</a>()`).</tt></dd></dl>
+
+<dl><dt><a name="SimServer-close"><strong>close</strong></a>(self)</dt><dd><tt>Explicitly&nbsp;close&nbsp;open&nbsp;file&nbsp;handles,&nbsp;databases&nbsp;etc.</tt></dd></dl>
+
+<dl><dt><a name="SimServer-delete"><strong>delete</strong></a>(self, docids)</dt><dd><tt>Delete&nbsp;specified&nbsp;documents&nbsp;from&nbsp;the&nbsp;index.</tt></dd></dl>
+
+<dl><dt><a name="SimServer-drop_index"><strong>drop_index</strong></a>(self, keep_model=True)</dt><dd><tt>Drop&nbsp;all&nbsp;indexed&nbsp;documents.&nbsp;If&nbsp;`keep_model`&nbsp;is&nbsp;False,&nbsp;also&nbsp;dropped&nbsp;the&nbsp;model.</tt></dd></dl>
+
+<dl><dt><a name="SimServer-find_similar"><strong>find_similar</strong></a>(self, doc, min_score=0.0, max_results=100)</dt><dd><tt>Find&nbsp;at&nbsp;most&nbsp;`max_results`&nbsp;most&nbsp;similar&nbsp;articles&nbsp;in&nbsp;the&nbsp;index,<br>
+each&nbsp;having&nbsp;similarity&nbsp;score&nbsp;of&nbsp;at&nbsp;least&nbsp;`min_score`.<br>
+&nbsp;<br>
+`doc`&nbsp;is&nbsp;either&nbsp;a&nbsp;string&nbsp;(document&nbsp;id,&nbsp;previously&nbsp;indexed)&nbsp;or&nbsp;a<br>
+dict&nbsp;containing&nbsp;a&nbsp;'tokens'&nbsp;key.&nbsp;These&nbsp;tokens&nbsp;are&nbsp;processed&nbsp;to&nbsp;produce&nbsp;a<br>
+vector,&nbsp;which&nbsp;is&nbsp;then&nbsp;used&nbsp;as&nbsp;a&nbsp;query.<br>
+&nbsp;<br>
+The&nbsp;similar&nbsp;documents&nbsp;are&nbsp;returned&nbsp;in&nbsp;decreasing&nbsp;similarity&nbsp;order,&nbsp;as<br>
+(doc_id,&nbsp;doc_score)&nbsp;pairs.</tt></dd></dl>
+
+<dl><dt><a name="SimServer-flush"><strong>flush</strong></a>(self, save_index=False, save_model=False, clear_buffer=False)</dt><dd><tt>Commit&nbsp;all&nbsp;changes,&nbsp;clear&nbsp;all&nbsp;caches.</tt></dd></dl>
+
+<dl><dt><a name="SimServer-index"><strong>index</strong></a>(self, corpus=None, clear_buffer=True)</dt><dd><tt>Permanently&nbsp;index&nbsp;all&nbsp;documents&nbsp;previously&nbsp;added&nbsp;via&nbsp;`buffer`,&nbsp;or<br>
+directly&nbsp;index&nbsp;documents&nbsp;from&nbsp;`corpus`,&nbsp;if&nbsp;specified.<br>
+&nbsp;<br>
+The&nbsp;indexing&nbsp;model&nbsp;must&nbsp;already&nbsp;exist&nbsp;(see&nbsp;`train`)&nbsp;before&nbsp;this&nbsp;function<br>
+is&nbsp;called.</tt></dd></dl>
+
+<dl><dt><a name="SimServer-is_locked"><strong>is_locked</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="SimServer-keys"><strong>keys</strong></a>(self)</dt><dd><tt>Return&nbsp;ids&nbsp;of&nbsp;all&nbsp;indexed&nbsp;documents.</tt></dd></dl>
+
+<dl><dt><a name="SimServer-location"><strong>location</strong></a>(self, name)</dt></dl>
+
+<dl><dt><a name="SimServer-optimize"><strong>optimize</strong></a>(self)</dt><dd><tt>Precompute&nbsp;top&nbsp;similarities&nbsp;for&nbsp;all&nbsp;indexed&nbsp;documents.&nbsp;This&nbsp;speeds&nbsp;up<br>
+`find_similar`&nbsp;queries&nbsp;by&nbsp;id&nbsp;(but&nbsp;not&nbsp;queries&nbsp;by&nbsp;fulltext).<br>
+&nbsp;<br>
+Internally,&nbsp;documents&nbsp;are&nbsp;moved&nbsp;from&nbsp;a&nbsp;fresh&nbsp;index&nbsp;(=no&nbsp;precomputed&nbsp;similarities)<br>
+to&nbsp;an&nbsp;optimized&nbsp;index&nbsp;(precomputed&nbsp;similarities).&nbsp;Similarity&nbsp;queries&nbsp;always<br>
+query&nbsp;both&nbsp;indexes,&nbsp;so&nbsp;this&nbsp;split&nbsp;is&nbsp;transparent&nbsp;to&nbsp;clients.<br>
+&nbsp;<br>
+If&nbsp;you&nbsp;add&nbsp;documents&nbsp;later&nbsp;via&nbsp;`index`,&nbsp;they&nbsp;go&nbsp;to&nbsp;the&nbsp;fresh&nbsp;index&nbsp;again.<br>
+To&nbsp;precompute&nbsp;top&nbsp;similarities&nbsp;for&nbsp;these&nbsp;new&nbsp;documents&nbsp;too,&nbsp;simply&nbsp;call<br>
+`optimize`&nbsp;again.</tt></dd></dl>
+
+<dl><dt><a name="SimServer-status"><strong>status</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="SimServer-train"><strong>train</strong></a>(self, corpus=None, method='auto', clear_buffer=True)</dt><dd><tt>Create&nbsp;an&nbsp;indexing&nbsp;model.&nbsp;Will&nbsp;overwrite&nbsp;the&nbsp;model&nbsp;if&nbsp;it&nbsp;already&nbsp;exists.<br>
+All&nbsp;indexes&nbsp;become&nbsp;invalid,&nbsp;because&nbsp;documents&nbsp;in&nbsp;them&nbsp;use&nbsp;a&nbsp;now-obsolete<br>
+representation.<br>
+&nbsp;<br>
+The&nbsp;model&nbsp;is&nbsp;trained&nbsp;on&nbsp;documents&nbsp;previously&nbsp;entered&nbsp;via&nbsp;`buffer`,<br>
+or&nbsp;directly&nbsp;on&nbsp;`corpus`,&nbsp;if&nbsp;specified.</tt></dd></dl>
+
+<hr>
+Data descriptors defined here:<br>
+<dl><dt><strong>__dict__</strong></dt>
+<dd><tt>dictionary&nbsp;for&nbsp;instance&nbsp;variables&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+<dl><dt><strong>__weakref__</strong></dt>
+<dd><tt>list&nbsp;of&nbsp;weak&nbsp;references&nbsp;to&nbsp;the&nbsp;object&nbsp;(if&nbsp;defined)</tt></dd>
+</dl>
+</td></tr></table></td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#eeaa77">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Functions</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#eeaa77"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><dl><dt><a name="-merge_sims"><strong>merge_sims</strong></a>(oldsims, newsims, clip=100)</dt><dd><tt>Merge&nbsp;two&nbsp;precomputed&nbsp;similarity&nbsp;lists,&nbsp;truncating&nbsp;the&nbsp;result&nbsp;to&nbsp;`clip`&nbsp;most&nbsp;similar&nbsp;items.</tt></dd></dl>
+</td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#55aa55">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Data</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#55aa55"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><strong>JOURNAL_MODE</strong> = 'OFF'<br>
+<strong>LSI_TOPICS</strong> = 400<br>
+<strong>MODEL_METHOD</strong> = 'lsi'<br>
+<strong>SHARD_SIZE</strong> = 65536<br>
+<strong>TOP_SIMS</strong> = 100<br>
+<strong>logger</strong> = &lt;Logger gensim.similarities.simserver (WARNING)&gt;<br>
+<strong>with_statement</strong> = _Feature((2, 5, 0, 'alpha', 1), (2, 6, 0, 'alpha', 0), 32768)</td></tr></table>
+</body></html>
