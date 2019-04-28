@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import Pyro4
 from Pyro4 import naming
 import os
@@ -22,7 +20,7 @@ def print_exce():
 
 
 class Director:
-    
+
     def __init__(self):
         self.target_urls = []
         if os.path.exists('Visited.pkl'):
@@ -35,7 +33,7 @@ class Director:
     def add_new(self, url):
         if url not in self.visited_urls:
             self.target_urls.append(url)
-        
+
     def new_urls(self):
         return self.target_urls
 
@@ -47,7 +45,7 @@ class Director:
 
 
 class CrawlerThread(threading.Thread):
-    
+
     def __init__(self, nameserver, crawler_ident, queue):
         threading.Thread.__init__(self)
         crawler_uri = nameserver.lookup('Crawler'+crawler_ident)
